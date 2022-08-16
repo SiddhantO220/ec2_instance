@@ -16,7 +16,7 @@ locals {
   conf = [
     for item in var.properties : [
         #pr_ip = cidrsubnets(item.subnetId, 8, ${item})
-        for i in range(1, item.no_of_instances+1) : {
+      for i in range(1, item.no_of_instances+1) : {
         instance_name = "${item.name}-${i}"
         region = item.region
         amiId = item.amiId
@@ -28,9 +28,7 @@ locals {
         volumeSize = item.volumeSize
         volumetype = item.volumetype
         KmsKeyId = item.KmsKeyId
-        ip = item.privIp != [] ? item.privIp : null
-
-        #ip = pr_ip[${i-1}]
+        ip = "${item.privIp != [] ? item.privIp["${"${i}"-1}"] : null}"
       }
     ]  
   ]
