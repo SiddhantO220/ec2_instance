@@ -1,0 +1,49 @@
+#!/bin/bash
+date >> /userdata.log
+
+cat << 'EOF' >/docker-swarm.sh
+docker swarm leave --force
+docker swarm init
+yes | docker network rm ingress
+TOKEN=$(docker swarm join-token $2 -q)
+rm -rf /home/centos/efs-devops/docker-swarm-init/docker-join-$1.sh
+mkdir -p /home/centos/efs-devops/docker-swarm-init/
+echo "docker swarm join --token $TOKEN $(hostname -i):2377" > /home/centos/efs-devops/docker-swarm-init/docker-join-$1.sh
+sh /home/centos/efs-devops/docker-swarm-setup/create_network.sh
+EOF
+
+chmod +x /docker-swarm.sh
+docker system prune -a -f
+sh /docker-swarm.sh services manager &> /home/centos/docker-swarm.log
+
+
+cat << 'EOF' >/home/centos/docker-services.sh
+nodes=0
+i=0
+while [[ $nodes -lt 6 ]] && [[ $i -lt 150 ]]; do
+ sleep 2
+ nodes=$(docker node ls | grep -c "Ready")
+ i=$((i+1))
+ echo "$i - No of nodes - $nodes" >> ~/docker-node-status.log
+done
+echo "services started" >> /home/centos/docker-stack.log
+docker stack rm $(docker stack ls | cut -d ' ' -f1)
+i=0
+echo "services started" >> /home/centos/docker-stack.log
+for i in `ls /home/centos/efs-devops/services/deploy-scripts/deploy-docker-*.sh | grep -v nginx`; do
+	echo "sh $i">> /home/centos/docker-stack.log 
+  sh $i >> /home/centos/docker-stack.log 
+done
+echo "runnng deploy-docker-nginx-services.sh" >> /home/centos/docker-stack.log
+sh /home/centos/efs-devops/services/deploy-scripts/deploy-docker-nginx-services.sh >> /home/centos/docker-stack.log
+sudo systemctl start node_exporter
+sleep 1m
+docker-compose -f /home/centos/efs-devops/cadvisor/docker-compose.yml up -d
+EOF
+
+chown centos:centos /home/centos/docker-services.sh
+chmod +x /home/centos/docker-services.sh
+
+su - centos <<'EOF'
+sh /home/centos/docker-services.sh
+EOF

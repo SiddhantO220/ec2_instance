@@ -1,0 +1,20 @@
+#!/bin/bash
+date >> /userdata.log
+
+cat << 'EOF' >/home/centos/docker-swarm.sh
+docker swarm leave --force
+docker swarm init
+yes | docker network rm ingress
+TOKEN=$(docker swarm join-token $2 -q)
+rm -rf /home/centos/efs-devops/docker-swarm-init/docker-join-$1.sh
+mkdir -p /home/centos/efs-devops/docker-swarm-init/
+echo "docker swarm join --token $TOKEN $(hostname -i):2377" > /home/centos/efs-devops/docker-swarm-init/docker-join-$1.sh
+sh /home/centos/efs-devops/docker-swarm-setup/create_network.sh
+EOF
+
+chmod +x /home/centos/docker-swarm.sh
+docker system prune -a -f
+
+su - centos <<'EOF'
+sh /home/centos/docker-swarm.sh batchapp worker &> /home/centos/docker-swarm.log
+EOF

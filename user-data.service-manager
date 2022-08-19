@@ -1,0 +1,22 @@
+#!/bin/bash
+date >> /userdata.log
+
+cat << 'EOF' >/docker-join.sh
+docker swarm leave --force
+i=0
+FILE="/home/centos/efs-devops/docker-swarm-init/docker-join-$1.sh"
+while [[ ! -f $FILE ]] && [[ $i -lt 1000 ]]; do
+    sleep 1
+    ((i++))
+    echo $i
+done
+sh $FILE
+sudo systemctl start node_exporter
+sleep 1m
+docker-compose -f /home/centos/efs-devops/cadvisor/docker-compose.yml up -d
+EOF
+
+
+chmod +x /docker-join.sh
+docker system prune -a -f
+sh /docker-join.sh services &> /docker-join.sh.log
